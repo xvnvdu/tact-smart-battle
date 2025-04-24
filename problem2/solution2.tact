@@ -1,4 +1,4 @@
-struct ProposalInit {
+    struct ProposalInit {
     master: Address;
     proposalId: Int as uint32;
 }
@@ -9,14 +9,29 @@ message DeployNewProposal {
 
 contract ProposalMaster {
     // deploy
+    proposalIdCounter: Int as uint32 = 0; 
+
     receive() { }
 
     receive(msg: DeployNewProposal) {
-        // TODO: implement
+        require(now() <= msg.votingEndingAt, "Voting has already ended");
+        
+        deploy(DeployParameters{
+           init: initOf Proposal(
+                ProposalInit{
+                master: myAddress(),
+                proposalId: self.proposalIdCounter,
+           }),
+           value: ton("0.05"),
+           body: msg.toCell(),
+        });
+        cashback(sender());
+
+        self.proposalIdCounter += 1;
     }
 
     get fun nextProposalId(): Int {
-        // TODO: implement
+        return self.proposalIdCounter;
     }
 }
 
@@ -35,16 +50,52 @@ struct ProposalState {
 }
 
 contract Proposal {
+    yesVotes: Int as uint32;
+    noVotes: Int as uint32;
+    alreadyVoted: map<Address, Bool> = emptyMap();
+    master: Address;
+    totalVotes: Int as uint32;
+    proposalId: Int as uint32;
+    votingEndingAt: Int as uint32;
 
     init(data: ProposalInit) {
-        // TODO: implement
+        self.master = data.master;
+        self.proposalId = data.proposalId;
+        self.yesVotes = 0;
+        self.noVotes = 0;
+        self.totalVotes = 0;
+        self.votingEndingAt = 0;
+    }
+
+    receive(msg: DeployNewProposal) {
+        throwIf(2025, sender() != self.master);
+        self.votingEndingAt = msg.votingEndingAt;
     }
 
     receive(msg: Vote) {
-        // TODO: implement
+        require(now() <= self.votingEndingAt, "Voting has already ended" );
+        require(self.totalVotes < 100, "Vote limit reached");
+        require(self.alreadyVoted.exists(sender()) == false, "Already voted");
+
+        if (msg.value) {
+            self.yesVotes += 1;
+        } else {
+            self.noVotes += 1;
+        }
+
+        self.totalVotes += 1;
+        self.alreadyVoted.set(sender(), true);
+ 
+        //cashback(sender());
     }
 
     get fun proposalState(): ProposalState {
-        // TODO: implement
+        return ProposalState{
+            yesCount: self.yesVotes,
+            noCount: self.noVotes,
+            master: self.master,
+            proposalId: self.proposalId,
+            votingEndingAt: self.votingEndingAt,
+        };
     }
 }
