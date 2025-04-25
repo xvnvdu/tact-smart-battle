@@ -1,4 +1,4 @@
-    struct ProposalInit {
+struct ProposalInit {
     master: Address;
     proposalId: Int as uint32;
 }
@@ -22,10 +22,11 @@ contract ProposalMaster {
                 master: myAddress(),
                 proposalId: self.proposalIdCounter,
            }),
-           value: ton("0.05"),
+           value: ton("0.01"),
            body: msg.toCell(),
+           bounce: false,
         });
-        cashback(sender());
+        //cashback(sender());
 
         self.proposalIdCounter += 1;
     }
@@ -50,31 +51,34 @@ struct ProposalState {
 }
 
 contract Proposal {
-    yesVotes: Int as uint32;
-    noVotes: Int as uint32;
+    yesVotes: Int as uint8;
+    noVotes: Int as uint8;
     alreadyVoted: map<Address, Bool> = emptyMap();
     master: Address;
-    totalVotes: Int as uint32;
+    //totalVotes: Int as uint32;
     proposalId: Int as uint32;
     votingEndingAt: Int as uint32;
 
+    receive(msg: DeployNewProposal) {
+            throwIf(2025, sender() != self.master);
+            self.votingEndingAt = msg.votingEndingAt;
+        }
+
     init(data: ProposalInit) {
+        if (sender() != data.master) {
+            throw(2025);
+        }
         self.master = data.master;
         self.proposalId = data.proposalId;
         self.yesVotes = 0;
         self.noVotes = 0;
-        self.totalVotes = 0;
+        //self.totalVotes = 0;
         self.votingEndingAt = 0;
-    }
-
-    receive(msg: DeployNewProposal) {
-        throwIf(2025, sender() != self.master);
-        self.votingEndingAt = msg.votingEndingAt;
     }
 
     receive(msg: Vote) {
         require(now() <= self.votingEndingAt, "Voting has already ended" );
-        require(self.totalVotes < 100, "Vote limit reached");
+        require(self.yesVotes + self.noVotes < 100, "Vote limit reached");
         require(self.alreadyVoted.exists(sender()) == false, "Already voted");
 
         if (msg.value) {
@@ -83,9 +87,7 @@ contract Proposal {
             self.noVotes += 1;
         }
 
-        self.totalVotes += 1;
         self.alreadyVoted.set(sender(), true);
- 
         //cashback(sender());
     }
 
