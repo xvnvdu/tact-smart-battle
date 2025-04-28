@@ -1,57 +1,46 @@
-//
-// Public solution template
-//
-
 message Vote {
     value: Bool;
 }
-
+ 
 struct ProposalState {
-    yesCount: Int as uint32;
-    noCount: Int as uint32;
+    yesCount: Int as uint8;
+    noCount: Int as uint8;
 }
-
+ 
 struct Init {
-    proposalId: Int as uint32;
+    proposalId: Int as uint8;
     votingEndingAt: Int as uint32;
 }
-
+ 
 contract Proposal {
+    votes: Int as uint16 = 0;
     votingEndingAt: Int as uint32;
-    yesVotes: Int as uint32;
-    noVotes: Int as uint32;
-    alreadyVoted: map<Int, Bool> = emptyMap();
-
+    alreadyVoted: map<Int as uint8, Bool> = emptyMap();
+ 
     init(data: Init) {
         self.votingEndingAt = data.votingEndingAt;
-        self.yesVotes = 0;
-        self.noVotes = 0;
     }
-
-    // deploy
+ 
     receive() { }
-
+ 
     receive(msg: Vote) {
-        require(now() <= self.votingEndingAt, "Voting has already ended" );
-        let sndr = parseStdAddress(sender().asSlice());
-
-        require(self.alreadyVoted.exists(sndr.address%256) == false,  "Already voted");
-
+		throwUnless(666, now() <= self.votingEndingAt);
+		throwUnless(777, self.alreadyVoted.exists(parseStdAddress(sender().asSlice()).address%256) == false);
+ 
         if (msg.value) {
-            self.yesVotes += 1;
+            self.votes += 1;
         } else {
-            self.noVotes += 1;
+            self.votes += 1 << 8;
         }
-
-        self.alreadyVoted.set(sndr.address%256, true);
-        
+ 
+		self.alreadyVoted.set(parseStdAddress(sender().asSlice()).address%256, true);
         cashback(sender());
     }
-
+ 
     get fun proposalState(): ProposalState {
         return ProposalState {
-            yesCount: self.yesVotes,
-            noCount: self.noVotes,
+            yesCount: self.votes % 256,
+            noCount: self.votes >> 8,
         };
     }
 }
