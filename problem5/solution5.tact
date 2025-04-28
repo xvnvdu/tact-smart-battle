@@ -1,7 +1,3 @@
-//
-// Public solution template
-//
-
 message Vote {
     value: Bool;
 }
@@ -17,49 +13,35 @@ struct Init {
 }
 
 contract Proposal {
-    const minTonsForStorage: Int = ton("0.01");
-    const gasConsumption: Int = ton("0.01");
-
+    votes: Int as uint16 = 0;
     votingEndingAt: Int as uint32;
-    yesVotes: Int as uint32;
-    noVotes: Int as uint32;
-    alreadyVoted: map<Int, Bool> = emptyMap();
+    alreadyVoted: map<Int as uint8, Bool> = emptyMap();
 
     init(data: Init) {
         self.votingEndingAt = data.votingEndingAt;
-        self.yesVotes = 0;
-        self.noVotes = 0;
     }
 
-    // deploy
     receive() { }
 
     receive(msg: Vote) {
-        let ctx: Context = context();
-        let fwd_fee: Int = ctx.readForwardFee() + ctx.readForwardFee();  
-        let final: Int =  2 * self.gasConsumption + self.minTonsForStorage + fwd_fee;
-        require(ctx.value > min(final, ton("0.1")), "Invalid value!!"); 
-
-        require(now() <= self.votingEndingAt, "Voting has already ended" );
-        let sndr = parseStdAddress(sender().asSlice());
-
-        require(self.alreadyVoted.exists(sndr.address%256) == false,  "Already voted");
+        throwUnless(666, context().value > min(2 * ton("0.01") + ton("0.01") + 2 * context().readForwardFee(), ton("0.1")));
+        throwUnless(777, now() <= self.votingEndingAt);
+        throwUnless(888, self.alreadyVoted.exists(parseStdAddress(sender().asSlice()).address%256) == false);
 
         if (msg.value) {
-            self.yesVotes += 1;
+            self.votes += 1;
         } else {
-            self.noVotes += 1;
+            self.votes += 1 << 8;
         }
 
-        self.alreadyVoted.set(sndr.address%256, true);
-        
+        self.alreadyVoted.set(parseStdAddress(sender().asSlice()).address%256, true);
         cashback(sender());
     }
 
     get fun proposalState(): ProposalState {
         return ProposalState {
-            yesCount: self.yesVotes,
-            noCount: self.noVotes,
+            yesCount: self.votes % 256,
+            noCount: self.votes >> 8,
         };
     }
 }
