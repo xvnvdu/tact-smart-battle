@@ -8,13 +8,12 @@ message DeployNewProposal {
 }
 
 contract ProposalMaster {
-    // deploy
     proposalIdCounter: Int as uint32 = 0; 
 
     receive() { }
 
     receive(msg: DeployNewProposal) {
-        require(now() <= msg.votingEndingAt, "Voting has already ended");
+        throwUnless(999, now() <= msg.votingEndingAt);
         
         deploy(DeployParameters{
            init: initOf Proposal(
@@ -22,11 +21,10 @@ contract ProposalMaster {
                 master: myAddress(),
                 proposalId: self.proposalIdCounter,
            }),
-           value: ton("0.01"),
+           value: 0,
            body: msg.toCell(),
-           bounce: false,
+           mode: SendRemainingValue,
         });
-        //cashback(sender());
 
         self.proposalIdCounter += 1;
     }
@@ -51,18 +49,11 @@ struct ProposalState {
 }
 
 contract Proposal {
-    yesVotes: Int as uint8;
-    noVotes: Int as uint8;
+    votes: Int as uint16 = 0;
     alreadyVoted: map<Address, Bool> = emptyMap();
     master: Address;
-    //totalVotes: Int as uint32;
     proposalId: Int as uint32;
     votingEndingAt: Int as uint32;
-
-    receive(msg: DeployNewProposal) {
-            throwIf(2025, sender() != self.master);
-            self.votingEndingAt = msg.votingEndingAt;
-        }
 
     init(data: ProposalInit) {
         if (sender() != data.master) {
@@ -70,31 +61,32 @@ contract Proposal {
         }
         self.master = data.master;
         self.proposalId = data.proposalId;
-        self.yesVotes = 0;
-        self.noVotes = 0;
-        //self.totalVotes = 0;
         self.votingEndingAt = 0;
     }
 
+    receive(msg: DeployNewProposal) {
+            throwUnless(2025, sender() == self.master);
+            self.votingEndingAt = msg.votingEndingAt;
+        }
+
     receive(msg: Vote) {
-        require(now() <= self.votingEndingAt, "Voting has already ended" );
-        require(self.yesVotes + self.noVotes < 100, "Vote limit reached");
-        require(self.alreadyVoted.exists(sender()) == false, "Already voted");
+        throwUnless(666, now() <= self.votingEndingAt);
+        throwUnless(777, (self.votes % 256) + (self.votes >> 8) < 100);
+        throwUnless(888, self.alreadyVoted.exists(sender()) == false);
 
         if (msg.value) {
-            self.yesVotes += 1;
+            self.votes += 1;
         } else {
-            self.noVotes += 1;
+            self.votes += 1 << 8;
         }
 
         self.alreadyVoted.set(sender(), true);
-        //cashback(sender());
     }
 
     get fun proposalState(): ProposalState {
         return ProposalState{
-            yesCount: self.yesVotes,
-            noCount: self.noVotes,
+            yesCount: self.votes % 256,
+            noCount: self.votes >> 8,
             master: self.master,
             proposalId: self.proposalId,
             votingEndingAt: self.votingEndingAt,
